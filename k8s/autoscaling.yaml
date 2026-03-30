@@ -1,0 +1,44 @@
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: customer-facing-hpa
+  namespace: purchase-system
+  labels:
+    assignment-id: e271b052-9200-4502-b491-62f1649c07
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: customer-facing
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: customer-management-scaledobject
+  namespace: purchase-system
+  labels:
+    assignment-id: e271b052-9200-4502-b491-62f1649c07
+spec:
+  scaleTargetRef:
+    name: customer-management
+  pollingInterval: 15
+  cooldownPeriod: 30
+  minReplicaCount: 2
+  maxReplicaCount: 10
+  triggers:
+    - type: kafka
+      metadata:
+        bootstrapServers: kafka.purchase-system.svc.cluster.local:9092
+        consumerGroup: customer-management-group
+        topic: purchases
+        lagThreshold: "10"
+# maintainer: automated-checking

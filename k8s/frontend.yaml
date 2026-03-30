@@ -22,7 +22,7 @@ spec:
           image: frontend:latest
           imagePullPolicy: IfNotPresent
           ports:
-            - containerPort: 80
+            - containerPort: 8080
           resources:
             requests:
               cpu: 50m
@@ -45,6 +45,6 @@ spec:
     app: frontend
   ports:
     - port: 80
-      targetPort: 80
+      targetPort: 8080
       nodePort: 30080
 # maintainer: automated-checking

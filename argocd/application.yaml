@@ -1,0 +1,23 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: purchase-system
+  namespace: argocd
+  labels:
+    assignment-id: e271b052-9200-4502-b491-62f1649c07
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/pankrates/devops-assignment2.git
+    targetRevision: main
+    path: k8s
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: purchase-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+# maintainer: automated-checking

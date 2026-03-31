@@ -1,0 +1,3 @@
+# picomatch ReDoS - transitive dependency inside npm itself (node:22-alpine)
+# Cannot be fixed until upstream node image updates bundled npm
+CVE-2026-33671

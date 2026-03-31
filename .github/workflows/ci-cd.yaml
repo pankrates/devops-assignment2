@@ -11,7 +11,33 @@ env:
   IMAGE_PREFIX: ghcr.io/${{ github.repository_owner }}
 
 jobs:
-  build-and-test:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: YAML lint
+        run: |
+          pip install yamllint
+          yamllint -c .yamllint.yml k8s/*.yaml argocd/*.yaml .github/workflows/*.yaml
+
+      - name: Hadolint - customer-facing
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: customer-facing/Dockerfile
+
+      - name: Hadolint - customer-management
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: customer-management/Dockerfile
+
+      - name: Hadolint - frontend
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: frontend/Dockerfile
+
+  build-and-scan:
+    needs: lint
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -33,29 +59,22 @@ jobs:
 
       - name: Test - container starts
         run: |
-          if [ "${{ matrix.service }}" = "frontend" ]; then
-            docker run -d --name test-${{ matrix.service }} -p 8080:80 ${{ matrix.service }}:test || true
-          else
-            docker run -d --name test-${{ matrix.service }} ${{ matrix.service }}:test || true
-          fi
+          docker run -d --name test-${{ matrix.service }} ${{ matrix.service }}:test || true
           sleep 3
           docker logs test-${{ matrix.service }}
           docker stop test-${{ matrix.service }} || true
 
-  validate-manifests:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Validate Kubernetes manifests (syntax)
-        run: |
-          for f in k8s/*.yaml; do
-            echo "Validating $f..."
-            kubectl apply -f "$f" --dry-run=client --validate=false
-          done
+      - name: Trivy vulnerability scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ matrix.service }}:test
+          format: table
+          exit-code: '1'
+          severity: HIGH,CRITICAL
+          trivyignores: .trivyignore
 
   push:
-    needs: [build-and-test, validate-manifests]
+    needs: build-and-scan
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
@@ -113,11 +132,4 @@ jobs:
           sed -i "s|image: frontend:latest|image: ${{ env.IMAGE_PREFIX }}/frontend:${SHORT_SHA}|" k8s/frontend.yaml
           echo "Updated manifests to use image tag: ${SHORT_SHA}"
           grep "image:" k8s/customer-facing.yaml k8s/customer-management.yaml k8s/frontend.yaml
-
-      - name: Validate updated manifests
-        run: |
-          for f in k8s/*.yaml; do
-            kubectl apply -f "$f" --dry-run=client --validate=false
-          done
-          echo "Manifests validated with new image tags"
 # maintainer: automated-checking
